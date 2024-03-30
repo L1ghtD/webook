@@ -41,8 +41,17 @@ func (ur *UserRepository) toDomainUser(u dao.User) domain.User {
 }
 
 func (ur *UserRepository) Edit(ctx context.Context, u domain.User) error {
-	return ur.dao.Insert(ctx, dao.User{
-		Email:    u.Email,
-		Password: u.Password,
+	return ur.dao.Update(ctx, dao.User{
+		Id:       u.Id,
+		Nickname: u.Nickname,
+		Birthday: u.Birthday.UnixMilli(),
+		Intro:    u.Intro,
 	})
+}
+
+func (ur *UserRepository) Query(ctx context.Context, id int64) (dao.User, error) {
+	u, err := ur.dao.Query(ctx, dao.User{
+		Id: id,
+	})
+	return u, err
 }

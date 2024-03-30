@@ -50,5 +50,10 @@ func (us *UserService) Login(ctx context.Context, email, password string) (domai
 }
 
 func (us *UserService) Edit(ctx context.Context, u domain.User) error {
-	return us.repo.Create(ctx, u)
+	return us.repo.Edit(ctx, u)
+}
+
+func (us *UserService) Profile(ctx context.Context, id int64) (dao.User, error) {
+	u, err := us.repo.Query(ctx, id)
+	return u, err
 }

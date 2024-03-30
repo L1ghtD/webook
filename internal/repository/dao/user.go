@@ -59,6 +59,18 @@ func (ud *UserDAO) FindUserByEmail(ctx context.Context, email string) (User, err
 	return u, err
 }
 
-func (ud *UserDAO) Update(ctx context.Context, u User) (User, error) {
+func (ud *UserDAO) Update(ctx context.Context, u User) error {
+	err := ud.db.WithContext(ctx).Updates(&u).Error
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (ud *UserDAO) Query(ctx context.Context, u User) (User, error) {
+	res := ud.db.WithContext(ctx).First(&u)
+	if res.Error != nil {
+		return User{}, res.Error
+	}
 	return u, nil
 }

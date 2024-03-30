@@ -1,13 +1,13 @@
 package web
 
 import (
-	"fmt"
 	regexp "github.com/dlclark/regexp2"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/l1ghtd/webook/internal/domain"
 	"github.com/l1ghtd/webook/internal/service"
 	"net/http"
+	"time"
 )
 
 const (
@@ -16,6 +16,7 @@ const (
 	passwordRegexPattern = `^(?=.*[A-Za-z])(?=.*\d)(?=.*[$@$!%*#?&])[A-Za-z\d$@$!%*#?&]{8,}$`
 	nicknameRegexPattern = `^.{2,5}$`
 	introRegexPattern    = `^.{5,10}$`
+	birthdayRegexPattern = `^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$`
 )
 
 type UserHandler struct {
@@ -23,6 +24,7 @@ type UserHandler struct {
 	passwordRexExp *regexp.Regexp
 	nicknameRexExp *regexp.Regexp
 	introRexExp    *regexp.Regexp
+	birthdayRexExp *regexp.Regexp
 	svc            *service.UserService
 }
 
@@ -32,6 +34,7 @@ func NewUserHandler(svc *service.UserService) *UserHandler {
 		passwordRexExp: regexp.MustCompile(passwordRegexPattern, regexp.None),
 		nicknameRexExp: regexp.MustCompile(nicknameRegexPattern, regexp.None),
 		introRexExp:    regexp.MustCompile(introRegexPattern, regexp.None),
+		birthdayRexExp: regexp.MustCompile(birthdayRegexPattern, regexp.None),
 		svc:            svc,
 	}
 }
@@ -43,9 +46,9 @@ func (h *UserHandler) RegisterRoutes(server *gin.Engine) {
 	// POST /users/login
 	ug.POST("/login", h.Login)
 	// POST /users/edit
-	ug.POST("/edit/:id", h.Edit)
+	ug.POST("/edit", h.Edit)
 	// GET /users/profile
-	ug.GET("/profile/:id", h.Profile)
+	ug.GET("/profile", h.Profile)
 }
 
 func (h *UserHandler) SignUp(ctx *gin.Context) {
@@ -143,13 +146,97 @@ func (h *UserHandler) Edit(ctx *gin.Context) {
 
 	var req EditReq
 	if err := ctx.Bind(&req); err != nil {
-		fmt.Println(err)
 		return
 	}
-	fmt.Println(ctx.Param("id"))
+	//fmt.Println(ctx.Param("id"))
+
+	session := sessions.Default(ctx)
+	var userId int64
+	userId = session.Get("userId").(int64)
+
+	isBirthday, err := h.birthdayRexExp.MatchString(req.Birthday)
+	if err != nil {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+	if !isBirthday {
+		ctx.String(http.StatusOK, "非法生日格式, 比如 1987-03-04")
+		return
+	}
+
+	isNickname, err := h.nicknameRexExp.MatchString(req.Nickname)
+	if err != nil {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+	if !isNickname {
+		ctx.String(http.StatusOK, "长度不符合要求，2-5位")
+		return
+	}
+
+	isIntro, err := h.introRexExp.MatchString(req.Intro)
+	if err != nil {
+		ctx.String(http.StatusOK, "系统错误")
+		return
+	}
+	if !isIntro {
+		ctx.String(http.StatusOK, "长度不符合要求，5-10位")
+		return
+	}
+
+	user := domain.User{
+		Id:       userId,
+		Birthday: parseTime(req.Birthday),
+		Nickname: req.Nickname,
+		Intro:    req.Intro,
+	}
+	err = h.svc.Edit(ctx, user)
+	switch err {
+	case nil:
+		ctx.String(http.StatusOK, "修改成功")
+	default:
+		ctx.String(http.StatusOK, "系统错误")
+	}
 
 }
 
 func (h *UserHandler) Profile(ctx *gin.Context) {
+	type ProfileRsp struct {
+		Id       int64  `json:"id"`
+		Email    string `json:"email"`
+		Birthday string `json:"birthday"`
+		Nickname string `json:"nickname"`
+		Intro    string `json:"intro"`
+	}
 
+	session := sessions.Default(ctx)
+	var userId int64
+	userId = session.Get("userId").(int64)
+
+	daoUser, err := h.svc.Profile(ctx, userId)
+	switch err {
+	case nil:
+		profileRsp := ProfileRsp{
+			Id:       daoUser.Id,
+			Email:    daoUser.Email,
+			Birthday: transUnixToStr(daoUser.Birthday),
+			Nickname: daoUser.Nickname,
+			Intro:    daoUser.Intro,
+		}
+		ctx.JSON(http.StatusOK, profileRsp)
+	default:
+		ctx.String(http.StatusOK, "系统错误")
+	}
+}
+
+func parseTime(birthday string) time.Time {
+	layout := "2006-01-02"
+	t, _ := time.Parse(layout, birthday)
+	return t
+}
+
+func transUnixToStr(unixTime int64) string {
+	t := time.UnixMilli(unixTime)
+	formattedTime := t.Format("2006-01-02")
+	return formattedTime
 }
