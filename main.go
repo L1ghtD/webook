@@ -71,6 +71,10 @@ func initWebServer() *gin.Engine {
 	// 存储数据的，也就是你 userId 存哪里
 	// 直接存 cookie
 	store := cookie.NewStore([]byte("secret"))
+	//store, err := redis.NewStore(16, "tcp", "127.0.0.1:6379", "", []byte("aaabbbccc"))
+	//if err != nil {
+	//	panic(err)
+	//}
 	r.Use(sessions.Sessions("ssid", store), login.CheckLogin())
 
 	return r
