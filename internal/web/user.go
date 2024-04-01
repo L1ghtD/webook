@@ -4,9 +4,11 @@ import (
 	regexp "github.com/dlclark/regexp2"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/l1ghtd/webook/internal/domain"
 	"github.com/l1ghtd/webook/internal/service"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -44,7 +46,8 @@ func (h *UserHandler) RegisterRoutes(server *gin.Engine) {
 	// POST /users/signup
 	ug.POST("/signup", h.SignUp)
 	// POST /users/login
-	ug.POST("/login", h.Login)
+	//ug.POST("/login", h.Login)
+	ug.POST("/login", h.LoginJWT)
 	// POST /users/edit
 	ug.POST("/edit", h.Edit)
 	// GET /users/profile
@@ -137,6 +140,45 @@ func (h *UserHandler) Login(ctx *gin.Context) {
 
 }
 
+func (h *UserHandler) LoginJWT(ctx *gin.Context) {
+	type LoginReq struct {
+		Email    string `json:"email"`
+		Password string `json:"password"`
+	}
+
+	var req LoginReq
+	if err := ctx.Bind(&req); err != nil {
+		return
+	}
+
+	u, err := h.svc.Login(ctx, req.Email, req.Password)
+	switch err {
+	case nil:
+		// Header + Payload
+		token := jwt.NewWithClaims(jwt.SigningMethodHS256, UserClaims{
+			Uid:       u.Id,
+			UserAgent: ctx.GetHeader("User-Agent"),
+			RegisteredClaims: jwt.RegisteredClaims{
+				ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Minute)),
+			},
+		})
+		// 使用 JWTKey 签名
+		// HS256,HS384,HS512 签名可以直接传入 []byte, 其它签名方法需要看文档
+		tokenStr, err := token.SignedString(JWTKey)
+		if err != nil {
+			ctx.String(http.StatusOK, "系统错误")
+			return
+		}
+		ctx.Header("x-jwt-token", tokenStr)
+		ctx.String(http.StatusOK, "登录成功")
+	case service.ErrInvalidUserOrPassword:
+		ctx.String(http.StatusOK, "用户名或者密码不对")
+	default:
+		ctx.String(http.StatusOK, "系统错误")
+	}
+
+}
+
 func (h *UserHandler) Edit(ctx *gin.Context) {
 	type EditReq struct {
 		Birthday string `json:"birthday"`
@@ -209,9 +251,22 @@ func (h *UserHandler) Profile(ctx *gin.Context) {
 		Intro    string `json:"intro"`
 	}
 
-	session := sessions.Default(ctx)
-	var userId int64
-	userId = session.Get("userId").(int64)
+	// session
+	//session := sessions.Default(ctx)
+	//var userId int64
+	//userId = session.Get("userId").(int64)
+
+	// JWT
+	authCode := ctx.GetHeader("Authorization")
+	segs := strings.Split(authCode, " ")
+	tokenStr := segs[1]
+
+	var uc UserClaims
+	_, err := jwt.ParseWithClaims(tokenStr, &uc, func(token *jwt.Token) (interface{}, error) {
+		// 这是一个计算JWTKey 的函数，因为已经提前定义了，所以直接返回
+		return JWTKey, nil
+	})
+	userId := uc.Uid
 
 	daoUser, err := h.svc.Profile(ctx, userId)
 	switch err {
@@ -239,4 +294,13 @@ func transUnixToStr(unixTime int64) string {
 	t := time.UnixMilli(unixTime)
 	formattedTime := t.Format("2006-01-02")
 	return formattedTime
+}
+
+var JWTKey = []byte("k6CswdUm77WKcbM68UQUuxVsHSpTCwgK")
+
+type UserClaims struct {
+	// 该结构体实现了 Claims 接口
+	jwt.RegisteredClaims
+	Uid       int64
+	UserAgent string
 }

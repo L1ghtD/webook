@@ -55,6 +55,8 @@ func initWebServer() *gin.Engine {
 		AllowCredentials: true,
 
 		AllowHeaders: []string{"Content-Type", "Authorization"},
+		// 这里需要暴露出自定义头
+		ExposeHeaders: []string{"X-Jwt-Token"},
 		//AllowHeaders: []string{"content-type"},
 		//AllowMethods: []string{"POST"},
 		AllowOriginFunc: func(origin string) bool {
@@ -67,6 +69,18 @@ func initWebServer() *gin.Engine {
 		MaxAge: 12 * time.Hour,
 	}))
 
+	//useSession(r)
+	useJWT(r)
+
+	return r
+}
+
+func useJWT(r *gin.Engine) {
+	login := middleware.LoginJWTMiddlewareBuilder{}
+	r.Use(login.CheckLogin())
+}
+
+func useSession(r *gin.Engine) {
 	login := &middleware.LoginMiddlewareBuilder{}
 	// 存储数据的，也就是你 userId 存哪里
 	// 直接存 cookie
@@ -76,6 +90,4 @@ func initWebServer() *gin.Engine {
 	//	panic(err)
 	//}
 	r.Use(sessions.Sessions("ssid", store), login.CheckLogin())
-
-	return r
 }
