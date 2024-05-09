@@ -2,8 +2,8 @@ package repository
 
 import (
 	"context"
-	"github.com/l1ghtd/webook/internal/domain"
-	"github.com/l1ghtd/webook/internal/repository/dao"
+	"github.com/ra1n6ow/webook/internal/domain"
+	"github.com/ra1n6ow/webook/internal/repository/dao"
 )
 
 type UserRepository struct {

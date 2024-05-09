@@ -3,9 +3,9 @@ package service
 import (
 	"context"
 	"errors"
-	"github.com/l1ghtd/webook/internal/domain"
-	"github.com/l1ghtd/webook/internal/repository"
-	"github.com/l1ghtd/webook/internal/repository/dao"
+	"github.com/ra1n6ow/webook/internal/domain"
+	"github.com/ra1n6ow/webook/internal/repository"
+	"github.com/ra1n6ow/webook/internal/repository/dao"
 	"golang.org/x/crypto/bcrypt"
 )
 
